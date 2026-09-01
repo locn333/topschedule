@@ -407,9 +407,8 @@ function saveCurrent(){
    yardHours:Number(x.querySelector(".yardHours").value)||0
  }));
 }
-// ---- Real routing: Google Maps (geocoding + traffic-aware driving time) ----
-// Calls go through this site's own serverless functions, which hold the
-// Google API key server-side (never exposed in this file).
+// ---- Real routing: OpenStreetMap Nominatim + Photon (geocoding) and OSRM (driving time) ----
+// All free, keyless, CORS-friendly public services. No billing, no signup.
 const GEOCODE_KEY = "topscheduler:geocode";
 const ROUTE_KEY = "topscheduler:routes";
 let geocodeCache = {};
@@ -458,8 +457,8 @@ async function geocode(address){
   const query = geocodeQuery(cleanAddress(norm));
   try{
     // Calls our own site's serverless function, which does the actual
-    // Google geocoding lookup server-side — avoiding the browser CORS
-    // restriction that blocks direct client-side fetch() to Google's API.
+    // Nominatim/Photon lookup server-side — avoiding the browser CORS
+    // restriction that blocks direct client-side fetch() to those services.
     const res = await fetch("/.netlify/functions/geocode?q="+encodeURIComponent(query));
     const data = await res.json();
     if(data && data.lat!=null && data.lon!=null){
@@ -571,7 +570,7 @@ function renderCallSheet(results){
      ${(r.anyEstimated&&!r.anyBadAddress)?" · * one or more drive times could not be routed, estimate used":""}
    </div>`;
  });
- html += '<div style="margin-top:10px;font-size:11.5px;color:var(--faint)">Drive times via Google Maps.</div>';
+ html += '<div style="margin-top:10px;font-size:11.5px;color:var(--faint)">Drive times via OSRM routing on OpenStreetMap data.</div>';
  document.getElementById("results").innerHTML = html || '<p class="empty">Add stops, then calculate the schedule.</p>';
 }
 async function calculateOne(){
