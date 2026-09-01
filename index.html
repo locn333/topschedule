@@ -310,17 +310,12 @@ function updateDepartureNote(){
 }
 function loadDriver(){
  const d=drivers[selected];
- document.getElementById("driverName").value=d.name;
- document.getElementById("driverTruck").value=d.truck;
+ document.getElementById("driverTitle").textContent=d.name+"'s Route";
  document.getElementById("startTime").value=d.start;
- document.getElementById("actualStart").value=d.actualStart||"";
- document.getElementById("startLocation").value=d.startLoc;
- document.getElementById("returnLocation").value=d.returnLoc;
- updateDepartureNote();
- const list=document.getElementById("jobList"); list.innerHTML="";
- if(d.jobs.length===0){ list.innerHTML = '<p class="empty">No stops yet.</p>'; }
- d.jobs.forEach(j=>renderJob(j));
- numberJobs();
+ document.getElementById("startLocation").value=d.startLocation||"Lake Forest Yard";
+ document.getElementById("returnLocation").value=d.returnLocation||"Lake Forest Yard";
+ const list=document.getElementById("jobList");list.innerHTML="";
+ d.jobs.forEach(j=>addJob(j));
 }
 function renderJob(j){
  const list=document.getElementById("jobList");
@@ -387,28 +382,21 @@ function onToYardChange(cb){
 
 function saveCurrent(){
  const d=drivers[selected];
- if(!d) return;
- d.name=document.getElementById("driverName").value||d.name;
- d.truck=document.getElementById("driverTruck").value;
  d.start=document.getElementById("startTime").value;
- d.actualStart=document.getElementById("actualStart").value||null;
- d.startLoc=document.getElementById("startLocation").value;
- d.returnLoc=document.getElementById("returnLocation").value;
- d.jobs = [...document.querySelectorAll(".job")].map(x=>({
-   id:x.dataset.id,
-   customer:x.querySelector(".customer").value,
-   phone:x.querySelector(".phone").value,
-   address:x.querySelector(".address").value,
-   type:x.querySelector(".type").value,
-   hours:Number(x.querySelector(".hours").value)||0,
-   notes:x.querySelector(".notes").value,
-   toYard:x.querySelector(".toYard").checked,
-   yardAddress:x.querySelector(".yardAddress").value,
-   yardHours:Number(x.querySelector(".yardHours").value)||0
- }));
+ d.startLocation=document.getElementById("startLocation").value||"Lake Forest Yard";
+ d.returnLocation=document.getElementById("returnLocation").value||"Lake Forest Yard";
+ d.jobs=[...document.querySelectorAll(".job")].map(x=>[
+  x.querySelector(".customer").value,
+  x.querySelector(".phone").value,
+  x.querySelector(".address").value,
+  x.querySelector(".type").value,
+  Number(x.querySelector(".duration").value)||0,
+  x.querySelector(".notes").value
+ ]);
 }
-// ---- Real routing: OpenStreetMap Nominatim + Photon (geocoding) and OSRM (driving time) ----
-// All free, keyless, CORS-friendly public services. No billing, no signup.
+// ---- Real routing: Google Maps (geocoding + traffic-aware driving time) ----
+// Calls go through this site's own serverless functions, which hold the
+// Google API key server-side (never exposed in this file).
 const GEOCODE_KEY = "topscheduler:geocode";
 const ROUTE_KEY = "topscheduler:routes";
 let geocodeCache = {};
@@ -457,8 +445,8 @@ async function geocode(address){
   const query = geocodeQuery(cleanAddress(norm));
   try{
     // Calls our own site's serverless function, which does the actual
-    // Nominatim/Photon lookup server-side — avoiding the browser CORS
-    // restriction that blocks direct client-side fetch() to those services.
+    // Google geocoding lookup server-side — avoiding the browser CORS
+    // restriction that blocks direct client-side fetch() to Google's API.
     const res = await fetch("/.netlify/functions/geocode?q="+encodeURIComponent(query));
     const data = await res.json();
     if(data && data.lat!=null && data.lon!=null){
@@ -570,7 +558,7 @@ function renderCallSheet(results){
      ${(r.anyEstimated&&!r.anyBadAddress)?" · * one or more drive times could not be routed, estimate used":""}
    </div>`;
  });
- html += '<div style="margin-top:10px;font-size:11.5px;color:var(--faint)">Drive times via OSRM routing on OpenStreetMap data.</div>';
+ html += '<div style="margin-top:10px;font-size:11.5px;color:var(--faint)">Drive times via Google Maps.</div>';
  document.getElementById("results").innerHTML = html || '<p class="empty">Add stops, then calculate the schedule.</p>';
 }
 async function calculateOne(){
@@ -586,22 +574,31 @@ async function calculateOne(){
  setCalcButtonsDisabled(false);
  queueSave();
 }
-async function calculateAll(){
+async function renderResults(all,title){
+ let out=`<h3>${title}</h3>`;
+ if(!all.length){out+="<p>No jobs entered.</p>";document.getElementById("results").innerHTML=out;return;}
+ out+=`<table><thead><tr><th>Stop</th><th>Customer</th><th>Phone</th><th>Address</th><th>Job</th><th>ETA</th><th>Duration</th><th>Estimated Done</th></tr></thead><tbody>`;
+ all.forEach(r=>r.rows.forEach(x=>{
+   const phone=x.phone?`<a href="tel:${x.phone.replace(/[^0-9+]/g,"")}">${x.phone}</a>`:"—";
+   out+=`<tr><td>${x.stop}</td><td>${x.customer}</td><td>${phone}</td><td>${x.address}</td><td>${x.type}</td><td>${x.arrival}</td><td>${x.duration} min</td><td>${x.done}</td></tr>`;
+ }));
+ out+="</tbody></table>";
+ all.forEach(r=>{
+   const tooLong=r.total>720;
+   out+=`<div class="${tooLong?"warn":""}" style="margin-top:12px"><b>${r.rows[0]?.driver||""}</b> — projected return to ${r.returnLocation}: ${fmt(r.finish)} · total planned span ${Math.floor(r.total/60)}h ${r.total%60}m${tooLong?" · ⚠️ Schedule exceeds 12 hours":" · ✅ On schedule"}</div>`;
+ });
+ document.getElementById("results").innerHTML=out;
+}
+function calculateSelected(){
  saveCurrent();
- const withJobs = drivers.filter(d=>d.jobs.length);
- if(!withJobs.length){ document.getElementById("results").innerHTML='<p class="empty">No stops scheduled yet.</p>'; return; }
- setCalcButtonsDisabled(true);
- document.getElementById("results").innerHTML = '<p class="empty">Calculating real drive times for all drivers…</p>';
- const results = [];
- for(const d of withJobs){
-   const r = await calcDriver(d, setStatus);
-   r.driverName = d.name;
-   results.push(r);
- }
- setStatus("");
- renderCallSheet(results);
- setCalcButtonsDisabled(false);
- queueSave();
+ const d=drivers[selected], r=calcDriver(d);
+ renderResults([r], `${d.name}'s Customer Service Call Sheet`);
+ renderDrivers();
+}
+function calculateAll(){
+ saveCurrent();
+ const all=drivers.filter(d=>d.jobs.length).map(calcDriver);
+ renderResults(all, "All Drivers — Customer Service Call Sheet");
 }
 function setCalcButtonsDisabled(disabled){
  document.querySelectorAll(".actions button").forEach(b=>b.disabled=disabled);
