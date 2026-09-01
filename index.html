@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Top Scheduler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<style>
+:root{
+  --bg:#F3F4F1; --panel:#FFFFFF; --ink:#1B1E23; --steel:#5B6572; --faint:#8A93A0;
+  --line:#DEE1E0; --accent:#C2660D; --accent-ink:#FFFFFF; --good:#1B7F4C; --good-bg:#E7F3EC;
+  --warn-bg:#FCEEE2; --warn-ink:#8A3B0A; --danger:#B42318; --danger-bg:#FBEAE8;
+  --radius-s:5px; --radius-l:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums}
+h1,h2,h3,.label,.driver b,.stopnum,button{font-family:'Barlow Semi Condensed','Inter',sans-serif}
+
+header{background:var(--ink);color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:23px;margin:0;font-weight:700;letter-spacing:.2px}
+header .sub{font-size:12px;color:#B7BEC7;margin-top:2px}
+.sync{font-size:12px;color:#B7BEC7;display:flex;align-items:center;gap:8px}
+.sync .dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:none}
+.sync .dot.busy{background:var(--accent)}
+
+button{border:0;border-radius:var(--radius-s);padding:9px 14px;font-weight:600;font-size:14px;cursor:pointer;font-family:'Inter',sans-serif;transition:background .12s}
+button:disabled{opacity:.55;cursor:not-allowed}
+.primary{background:var(--accent);color:var(--accent-ink)}
+.primary:hover{background:#A9560A}
+.secondary{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.secondary:hover{background:#F5F6F5}
+.ghost{background:transparent;color:var(--steel);border:1px solid transparent}
+.ghost:hover{color:var(--ink)}
+
+.layout{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 66px)}
+aside{background:var(--panel);border-right:1px solid var(--line);padding:14px}
+aside h3{font-size:12px;text-transform:none;color:var(--faint);font-weight:600;margin:2px 0 10px;letter-spacing:.3px}
+.driver{padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius-s);margin-bottom:7px;cursor:pointer;background:#fff}
+.driver:hover{border-color:#C7CCD1}
+.driver.active{border-color:var(--accent);background:#FEF6EE}
+.driver b{font-size:15px;font-weight:600;display:block}
+.driver small{display:block;color:var(--steel);margin-top:3px;font-size:12px}
+
+main{padding:20px;max-width:1180px;width:100%;margin:auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-l);padding:20px;margin-bottom:16px}
+.card h2{font-size:19px;margin:0 0 14px;font-weight:700}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.field label{font-size:12px;font-weight:600;color:var(--steel);display:block;margin-bottom:5px}
+.field input,.field select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:var(--radius-s);font-size:14px;font-family:'Inter',sans-serif;background:#fff;color:var(--ink)}
+.field input:focus,.field select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+
+.jobs{margin-top:18px}
+.jobs h3{font-size:12px;color:var(--faint);font-weight:600;margin:0 0 10px;letter-spacing:.3px}
+.job{border:1px solid var(--line);border-radius:var(--radius-s);padding:12px;margin-bottom:10px;background:#FBFBFA}
+.job-top{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.stopnum{font-weight:700;color:var(--accent);font-size:15px;min-width:18px}
+.job-grid{display:grid;grid-template-columns:1.3fr 1fr 1.4fr .9fr .7fr;gap:8px}
+.job-grid input,.job-grid select{padding:8px 9px;border:1px solid var(--line);border-radius:var(--radius-s);width:100%;font-size:13.5px;font-family:'Inter',sans-serif}
+.job-notes{margin-top:8px}
+.job-notes textarea{min-height:38px;resize:vertical;font-size:13.5px}
+.job-field-label{font-size:10.5px;color:var(--faint);font-weight:600;margin-bottom:3px;display:block}
+.job-yard{margin-top:9px;padding:9px 10px;background:#FDF6EC;border:1px solid #F0DCB8;border-radius:var(--radius-s);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.job-yard label{font-size:12.5px;display:flex;align-items:center;gap:6px;color:var(--ink);font-weight:600}
+.job-yard input[type="checkbox"]{width:15px;height:15px}
+.job-yard .yardAddress{flex:1;min-width:160px;padding:7px 9px;border:1px solid var(--line);border-radius:var(--radius-s);font-size:13px;font-family:'Inter',sans-serif}
+.job-yard .yhint{font-size:11px;color:var(--faint);flex-basis:100%}
+.remove{background:var(--danger-bg);color:var(--danger);padding:8px 10px;align-self:flex-start}
+.actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+
+.result{overflow:auto}
+.result table{width:100%;border-collapse:collapse;min-width:820px}
+.result th{text-align:left;padding:9px 10px;border-bottom:2px solid var(--ink);font-size:11.5px;color:var(--steel);font-weight:600;text-transform:none}
+.result td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:13.5px}
+.result td.contact{color:var(--steel);font-size:12.5px}
+.driver-summary{margin-top:12px;padding:11px 14px;border-radius:var(--radius-s);border:1px solid var(--line);background:#FAFAF9;font-size:13.5px}
+.driver-summary.warn{background:var(--warn-bg);border-color:#F3C68F;color:var(--warn-ink)}
+.result tr.badaddr td{background:#FDECEC}
+.addr-flag{color:#B3261E;font-size:11.5px;font-weight:700;margin-top:2px}
+.empty{color:var(--faint);font-size:14px}
+
+@media(max-width:780px){
+  .layout{grid-template-columns:1fr}
+  .row{grid-template-columns:1fr}
+  .job-grid{grid-template-columns:1fr 1fr}
+  aside{border-right:0;border-bottom:1px solid var(--line);display:flex;overflow-x:auto;gap:8px}
+  aside .driver{min-width:150px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Top Scheduler</h1><div class="sub">Dispatch route planning</div></div>
+  <div class="sync"><span class="dot" id="syncDot"></span><span id="syncText">Synced</span>
+    <button class="ghost" onclick="refreshFromStorage(true)">Refresh</button>
+    <button class="secondary" onclick="toggleImport()">Import report</button>
+    <button class="secondary" onclick="showRouteMap()">Route map</button>
+  </div>
+</header>
+<div id="routeMapPanel" class="card" style="display:none;max-width:1180px;margin:16px auto 0">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <h2 style="margin:0">All driver routes</h2>
+    <button class="ghost" onclick="closeRouteMap()">Close</button>
+  </div>
+  <p id="routeMapStatus" style="font-size:13px;color:var(--steel);margin:4px 0 10px"></p>
+  <div id="routeMapDiv" style="height:480px;border-radius:var(--radius-s);border:1px solid var(--line)"></div>
+  <div id="routeMapLegend" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:14px"></div>
+</div>
+<div id="importPanel" class="card" style="display:none;max-width:1180px;margin:16px auto 0">
+  <h2>Import dispatch report</h2>
+  <p style="font-size:13px;color:var(--steel);margin-top:-6px">Upload the dispatch report PDF and it'll be read automatically — or paste the text yourself below. Each driver's <b>Customer</b>, job type (Pickup/Delivery/OSM), and address will be pulled in as stops — times and PO/order numbers are ignored, since you'll set those yourself. Importing replaces that driver's current stop list; drivers not already in your roster are added automatically.</p>
+  <input type="file" id="pdfUpload" accept="application/pdf" style="display:none" onchange="handlePdfUpload(event)">
+  <div class="actions" style="margin-bottom:10px">
+    <button class="primary" onclick="document.getElementById('pdfUpload').click()">Upload PDF</button>
+  </div>
+  <textarea id="importText" style="width:100%;min-height:180px;font-family:'Inter',monospace;font-size:12.5px;padding:10px;border:1px solid var(--line);border-radius:var(--radius-s)" placeholder="…or paste report text here"></textarea>
+  <div class="actions">
+    <button class="primary" onclick="parseAndImport()">Parse &amp; import</button>
+    <button class="ghost" onclick="clearImportText()">Clear</button>
+    <button class="secondary" onclick="toggleImport()">Cancel</button>
+  </div>
+  <div id="importSummary" style="margin-top:10px;font-size:13px"></div>
+</div>
+<div class="layout">
+<aside id="drivers"></aside>
+<main>
+<div class="card">
+  <h2 id="driverTitle">Route</h2>
+  <div class="row" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+    <div class="field"><label>Driver name</label><input id="driverName"></div>
+    <div class="field"><label>Truck</label><input id="driverTruck"></div>
+    <div class="field"><label>Planned start</label><input id="startTime" type="time"></div>
+    <div class="field">
+      <label>Actual departure</label>
+      <div style="display:flex;gap:6px">
+        <input id="actualStart" type="time">
+        <button class="secondary" type="button" onclick="markDeparted()" title="Set to current time">Now</button>
+      </div>
+      <div id="departureNote" style="font-size:11.5px;color:var(--steel);margin-top:4px"></div>
+    </div>
+    <div class="field"><label>Starting location</label><input id="startLocation"></div>
+    <div class="field"><label>Return location</label><input id="returnLocation"></div>
+  </div>
+  <div class="jobs">
+    <h3>Stops</h3>
+    <div id="jobList"></div>
+    <button class="secondary" onclick="addJob()">+ Add stop</button>
+  </div>
+  <div class="actions">
+    <button class="secondary" onclick="calculateOne()">Calculate this driver</button>
+    <button class="primary" onclick="calculateAll()">Calculate all schedules</button>
+  </div>
+  <div id="calcStatus" style="margin-top:8px;font-size:12.5px;color:var(--steel)"></div>
+</div>
+<div class="card result">
+  <h2>Customer Service Call Sheet</h2>
+  <div id="results"><p class="empty">Add stops, then calculate the schedule.</p></div>
+</div>
+</main>
+</div>
+
+<script>
+const STORAGE_KEY = "topscheduler:drivers";
+const defaultDrivers = [
+{name:"Brandon Wesdell",truck:"Landoll",start:"06:30",actualStart:null,startLoc:"Lake Forest Yard",returnLoc:"Lake Forest Yard",jobs:[]},
+{name:"Russell Galves",truck:"Straight Truck",start:"06:00",actualStart:null,startLoc:"Lake Forest Yard",returnLoc:"Lake Forest Yard",jobs:[]},
+{name:"Ernie Susman",truck:"Landoll",start:"05:00",actualStart:null,startLoc:"Lake Forest Yard",returnLoc:"Lake Forest Yard",jobs:[]},
+{name:"Brett Alvarez",truck:"Straight Truck",start:"06:00",actualStart:null,startLoc:"Lake Forest Yard",returnLoc:"Lake Forest Yard",jobs:[]},
+{name:"Craig Walsh",truck:"Straight Truck",start:"06:00",actualStart:null,startLoc:"Lake Forest Yard",returnLoc:"Lake Forest Yard",jobs:[]},
+{name:"Steve Lewis",truck:"Straight Truck",start:"04:30",actualStart:null,startLoc:"Lake Forest Yard",returnLoc:"Lake Forest Yard",jobs:[]}
+];
+function mkJob(address,type,hours){
+  return {id:cryptoId(),customer:"",phone:"",address:address||"",type:type||"Delivery",hours:hours!=null?hours:0.75,notes:"",toYard:false,yardAddress:"",yardHours:0.25};
+}
+function cryptoId(){return Math.random().toString(36).slice(2,10)}
+
+let drivers = [];
+let selected = 0;
+let saveTimer = null;
+
+function key(a,b){return a+"→"+b}
+function pseudoTravel(a,b){ // placeholder only; real Google Maps traffic comes later
+ if(!a||!b||a===b)return 0;
+ let h=0; for(const c of key(a,b)) h=(h*31+c.charCodeAt(0))%97;
+ return 15+(h%36);
+}
+function parseTime(s){const [h,m]=(s||"0:00").split(":").map(Number);return h*60+m}
+function fmt(m){m=((m%1440)+1440)%1440;let h=Math.floor(m/60),x=m%60,ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${String(x).padStart(2,"0")} ${ap}`}
+
+async function loadFromStorage(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, true);
+    if(res && res.value){ drivers = JSON.parse(res.value); return; }
+  }catch(e){ /* no data yet */ }
+  drivers = defaultDrivers;
+  await persist();
+}
+async function persist(){
+  setSyncing(true);
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(drivers), true);
+    setSyncing(false);
+  }catch(e){
+    setSyncing(false,true);
+  }
+}
+function queueSave(){
+  saveCurrent();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 500);
+}
+function setSyncing(busy, failed){
+  const dot=document.getElementById("syncDot"), txt=document.getElementById("syncText");
+  if(failed){ dot.style.background="var(--danger)"; txt.textContent="Save failed — retry"; return; }
+  dot.classList.toggle("busy", !!busy);
+  txt.textContent = busy ? "Saving…" : "Synced";
+}
+async function refreshFromStorage(manual){
+  saveCurrent();
+  await loadFromStorage();
+  if(selected >= drivers.length) selected = 0;
+  renderDrivers(); loadDriver();
+  if(manual){ setSyncing(false); }
+}
+
+function renderDrivers(){
+ const el=document.getElementById("drivers"); el.innerHTML="<h3>Drivers</h3>";
+ drivers.forEach((d,i)=>{
+   const x=document.createElement("div");
+   x.className="driver "+(i===selected?"active":"");
+   x.onclick=()=>{ saveCurrent(); selected=i; renderDrivers(); loadDriver(); };
+   const dep = departureDelta(d);
+   x.innerHTML=`<div style="display:flex;justify-content:space-between;gap:6px">
+       <b>${escapeHtml(d.name)}</b>
+       <button class="ghost" style="padding:2px 6px;font-size:12px" title="Remove driver" onclick="event.stopPropagation();removeDriver(${i})">×</button>
+     </div>
+     <small>${escapeHtml(d.truck)} · ${d.jobs.length} stop${d.jobs.length===1?"":"s"}${dep?" · "+dep:" · not yet departed"}</small>`;
+   el.appendChild(x);
+ });
+ const addBtn=document.createElement("button");
+ addBtn.className="secondary"; addBtn.style.width="100%"; addBtn.style.marginTop="4px";
+ addBtn.textContent="+ Add driver";
+ addBtn.onclick=()=>addDriver();
+ el.appendChild(addBtn);
+ const placeholderNames=["Mike","Ernie","Steve","Driver 4","Driver 5","Driver 6","Driver 7","Driver 8"];
+ if(drivers.some(d=>placeholderNames.includes(d.name))){
+   const clearBtn=document.createElement("button");
+   clearBtn.className="ghost"; clearBtn.style.width="100%"; clearBtn.style.marginTop="4px";
+   clearBtn.textContent="Replace placeholders with real drivers";
+   clearBtn.onclick=()=>clearPlaceholders();
+   el.appendChild(clearBtn);
+ }
+}
+function clearPlaceholders(){
+ // Renames legacy placeholder names to the real 6-driver roster (keeps any
+ // jobs/truck/start data already entered under the placeholder), and drops
+ // the extra unused slots (Driver 7 / Driver 8).
+ const nameMap = {"Mike":"Brandon Wesdell","Ernie":"Ernie Susman","Steve":"Steve Lewis","Driver 4":"Russell Galves","Driver 5":"Brett Alvarez","Driver 6":"Craig Walsh"};
+ const dropNames = ["Driver 7","Driver 8"];
+ const toRename = drivers.filter(d=>nameMap[d.name]);
+ const toDrop = drivers.filter(d=>dropNames.includes(d.name));
+ if(!toRename.length && !toDrop.length) return;
+ const msg = [];
+ if(toRename.length) msg.push(`rename ${toRename.map(d=>`${d.name}→${nameMap[d.name]}`).join(", ")}`);
+ if(toDrop.length) msg.push(`remove ${toDrop.map(d=>d.name).join(", ")}`);
+ if(!confirm(`${msg.join(" and ")}?`)) return;
+ drivers.forEach(d=>{ if(nameMap[d.name]) d.name = nameMap[d.name]; });
+ drivers = drivers.filter(d=>!dropNames.includes(d.name));
+ if(!drivers.length) drivers.push({name:"New Driver",truck:"",start:"06:00",actualStart:null,startLoc:"Lake Forest Yard",returnLoc:"Lake Forest Yard",jobs:[]});
+ if(selected>=drivers.length) selected=0;
+ renderDrivers(); loadDriver(); queueSave();
+}
+function addDriver(){
+ saveCurrent();
+ drivers.push({name:"New Driver",truck:"",start:"06:00",actualStart:null,startLoc:"Lake Forest Yard",returnLoc:"Lake Forest Yard",jobs:[]});
+ selected=drivers.length-1;
+ renderDrivers(); loadDriver(); queueSave();
+}
+function removeDriver(i){
+ if(drivers.length<=1) return;
+ if(!confirm(`Remove ${drivers[i].name} and all their stops?`)) return;
+ drivers.splice(i,1);
+ if(selected>=drivers.length) selected=drivers.length-1;
+ renderDrivers(); loadDriver(); queueSave();
+}
+function departureDelta(d){
+ if(!d.actualStart) return null;
+ const diff = parseTime(d.actualStart) - parseTime(d.start);
+ if(diff===0) return "left on time";
+ return diff>0 ? `left ${diff} min late` : `left ${-diff} min early`;
+}
+function markDeparted(){
+ const now = new Date();
+ const val = String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
+ document.getElementById("actualStart").value = val;
+ updateDepartureNote();
+ queueSave(); renderDrivers();
+}
+function updateDepartureNote(){
+ const d=drivers[selected];
+ const actual = document.getElementById("actualStart").value;
+ const note = document.getElementById("departureNote");
+ if(!actual){ note.textContent=""; return; }
+ const diff = parseTime(actual) - parseTime(document.getElementById("startTime").value);
+ if(diff===0) note.textContent = "On time";
+ else note.textContent = diff>0 ? `${diff} min later than planned` : `${-diff} min earlier than planned`;
+}
+function loadDriver(){
+ const d=drivers[selected];
+ document.getElementById("driverName").value=d.name;
+ document.getElementById("driverTruck").value=d.truck;
+ document.getElementById("startTime").value=d.start;
+ document.getElementById("actualStart").value=d.actualStart||"";
+ document.getElementById("startLocation").value=d.startLoc;
+ document.getElementById("returnLocation").value=d.returnLoc;
+ updateDepartureNote();
+ const list=document.getElementById("jobList"); list.innerHTML="";
+ if(d.jobs.length===0){ list.innerHTML = '<p class="empty">No stops yet.</p>'; }
+ d.jobs.forEach(j=>renderJob(j));
+ numberJobs();
+}
+function renderJob(j){
+ const list=document.getElementById("jobList");
+ if(list.querySelector(".empty")) list.innerHTML="";
+ const div=document.createElement("div"); div.className="job"; div.dataset.id=j.id;
+ div.innerHTML=`
+  <div class="job-top">
+    <span class="stopnum"></span>
+    <button class="remove" style="margin-left:auto" onclick="removeJob('${j.id}')">Remove</button>
+  </div>
+  <div class="job-grid">
+    <div><span class="job-field-label">Customer</span><input class="customer" value="${escapeAttr(j.customer)}" placeholder="Customer name"></div>
+    <div><span class="job-field-label">Phone</span><input class="phone" value="${escapeAttr(j.phone)}" placeholder="(555) 555-0100"></div>
+    <div><span class="job-field-label">Address</span><input class="address" value="${escapeAttr(j.address)}" placeholder="Street, city"></div>
+    <div><span class="job-field-label">Job type</span>
+      <select class="type">
+        ${["Delivery","Pickup","Removal","Onsite Move","Drop"].map(t=>`<option ${j.type===t?"selected":""}>${t}</option>`).join("")}
+      </select>
+    </div>
+    <div><span class="job-field-label">Duration (hrs)</span><input class="hours" type="number" min="0" step="0.25" value="${j.hours}"></div>
+  </div>
+  <div class="job-yard" style="display:${(j.type==="Removal"||j.type==="Pickup")?"flex":"none"}">
+    <label><input type="checkbox" class="toYard" ${j.toYard?"checked":""} onchange="onToYardChange(this)"> Drops at yard (adds a stop)</label>
+    <input class="yardAddress" placeholder="Yard address" value="${escapeAttr(j.yardAddress||"")}" style="display:${j.toYard?"block":"none"}">
+    <span class="yardHoursWrap" style="display:${j.toYard?"flex":"none"};align-items:center;gap:6px">
+      <span class="job-field-label" style="margin:0">Yard duration (hrs)</span>
+      <input class="yardHours" type="number" min="0" step="0.25" value="${j.yardHours!=null?j.yardHours:0.25}" style="width:70px;padding:7px 9px;border:1px solid var(--line);border-radius:var(--radius-s);font-size:13px;font-family:'Inter',sans-serif">
+    </span>
+    <span class="yhint">Leave unchecked if this pickup/removal goes straight to the next stop.</span>
+  </div>
+  <div class="job-notes"><span class="job-field-label">Notes</span><textarea class="notes" placeholder="Gate code, contact preference, special instructions…">${escapeHtml(j.notes)}</textarea></div>
+ `;
+ div.querySelector(".type").addEventListener("change",function(){ onJobTypeChange(this); });
+ list.appendChild(div);
+}
+function addJob(){
+ const d=drivers[selected];
+ const j=mkJob("","Delivery");
+ d.jobs.push(j);
+ renderJob(j); numberJobs();
+ queueSave(); renderDrivers();
+}
+function removeJob(id){
+ const d=drivers[selected];
+ d.jobs = d.jobs.filter(j=>j.id!==id);
+ const el=document.querySelector(`.job[data-id="${id}"]`);
+ if(el) el.remove();
+ if(d.jobs.length===0) document.getElementById("jobList").innerHTML='<p class="empty">No stops yet.</p>';
+ numberJobs(); queueSave(); renderDrivers();
+}
+function numberJobs(){document.querySelectorAll(".job").forEach((x,i)=>x.querySelector(".stopnum").textContent="Stop "+(i+1))}
+function onJobTypeChange(sel){
+ const jobDiv = sel.closest(".job");
+ const yardDiv = jobDiv.querySelector(".job-yard");
+ yardDiv.style.display = (sel.value==="Removal"||sel.value==="Pickup") ? "flex" : "none";
+}
+function onToYardChange(cb){
+ const jobDiv = cb.closest(".job");
+ const addrInput = jobDiv.querySelector(".yardAddress");
+ const hoursWrap = jobDiv.querySelector(".yardHoursWrap");
+ addrInput.style.display = cb.checked ? "block" : "none";
+ hoursWrap.style.display = cb.checked ? "flex" : "none";
+}
+
+function saveCurrent(){
+ const d=drivers[selected];
+ if(!d) return;
+ d.name=document.getElementById("driverName").value||d.name;
+ d.truck=document.getElementById("driverTruck").value;
+ d.start=document.getElementById("startTime").value;
+ d.actualStart=document.getElementById("actualStart").value||null;
+ d.startLoc=document.getElementById("startLocation").value;
+ d.returnLoc=document.getElementById("returnLocation").value;
+ d.jobs = [...document.querySelectorAll(".job")].map(x=>({
+   id:x.dataset.id,
+   customer:x.querySelector(".customer").value,
+   phone:x.querySelector(".phone").value,
+   address:x.querySelector(".address").value,
+   type:x.querySelector(".type").value,
+   hours:Number(x.querySelector(".hours").value)||0,
+   notes:x.querySelector(".notes").value,
+   toYard:x.querySelector(".toYard").checked,
+   yardAddress:x.querySelector(".yardAddress").value,
+   yardHours:Number(x.querySelector(".yardHours").value)||0
+ }));
+}
+// ---- Real routing: Google Maps (geocoding + traffic-aware driving time) ----
+// Calls go through this site's own serverless functions, which hold the
+// Google API key server-side (never exposed in this file).
+const GEOCODE_KEY = "topscheduler:geocode";
+const ROUTE_KEY = "topscheduler:routes";
+let geocodeCache = {};
+let routeCache = {};
+
+async function loadCaches(){
+  try{ const r = await window.storage.get(GEOCODE_KEY, true); if(r&&r.value) geocodeCache = JSON.parse(r.value); }catch(e){}
+  try{ const r = await window.storage.get(ROUTE_KEY, true); if(r&&r.value) routeCache = JSON.parse(r.value); }catch(e){}
+}
+let cacheSaveTimer=null;
+function persistCaches(){
+  clearTimeout(cacheSaveTimer);
+  cacheSaveTimer=setTimeout(async()=>{
+    try{ await window.storage.set(GEOCODE_KEY, JSON.stringify(geocodeCache), true); }catch(e){}
+    try{ await window.storage.set(ROUTE_KEY, JSON.stringify(routeCache), true); }catch(e){}
+  }, 400);
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+function setStatus(msg){ document.getElementById("calcStatus").textContent = msg || ""; }
+
+function looksLikeStreetStart(part){
+  if(/^\d{2,6}\s+[A-Za-z0-9]/.test(part)) return true; // starts with a street number
+  if(/&/.test(part)) return true; // intersection written with an ampersand
+  if(/\band\b/i.test(part) && /\b(Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Dr|Drive|Way|Ln|Lane|Pl|Place|Ct|Court|Pkwy|Parkway|Cir|Circle|Hwy|Highway)\b/i.test(part)) return true; // intersection written as "X and Y"
+  return false;
+}
+function geocodeQuery(address){
+  // Known typo in the source dispatch reports: "Aqua Mansa Rd" (Riverside Yard's
+  // street) should be "Agua Mansa Rd" — the real road name in Colton, CA. Fix it
+  // before geocoding so this recurring address always resolves correctly.
+  address = address.replace(/\bAqua Mansa\b/i, "Agua Mansa");
+  // Many job addresses have a site/venue name tacked on the front, e.g.
+  // "COSTCO 460, 895 E H ST, CHULA VISTA, CA 91910" or a venue name in front
+  // of an intersection like "Wildflower Acres @ Poppy, Hamner Ave & Eucalyptus
+  // Ave, Ontario, CA 91761" — the venue name can confuse the geocoder. Trim
+  // everything before the actual street address or intersection.
+  const parts = address.split(",").map(s=>s.trim()).filter(Boolean);
+  let idx = parts.findIndex(looksLikeStreetStart);
+  if(idx === -1) idx = 0;
+  return parts.slice(idx).join(", ");
+}
+async function geocode(address){
+  const norm = (address||"").trim();
+  if(!norm) return null;
+  if(geocodeCache[norm]) return geocodeCache[norm];
+  const query = geocodeQuery(cleanAddress(norm));
+  try{
+    // Calls our own site's serverless function, which does the actual
+    // Google geocoding lookup server-side — avoiding the browser CORS
+    // restriction that blocks direct client-side fetch() to Google's API.
+    const res = await fetch("/.netlify/functions/geocode?q="+encodeURIComponent(query));
+    const data = await res.json();
+    if(data && data.lat!=null && data.lon!=null){
+      const loc = {lat:data.lat, lon:data.lon};
+      geocodeCache[norm] = loc;
+      persistCaches();
+      return loc;
+    }
+  }catch(e){ console.warn("Geocode proxy failed for", query, e); }
+  console.warn("Geocoding found nothing for:", query, "(original:", norm, ")");
+  return null;
+}
+
+function timeBucket(minutesSinceMidnight){
+ // round to the nearest 30 minutes — enough traffic-time resolution for
+ // dispatch purposes, without a distinct cache entry for every minute
+ return Math.round(minutesSinceMidnight/30)*30;
+}
+function departAtISO(minutesSinceMidnight){
+ const now = new Date();
+ let mins = ((minutesSinceMidnight % 1440) + 1440) % 1440; // wrap into a single day
+ const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, mins, 0);
+ return d.toISOString();
+}
+async function drivingMinutes(fromAddr, toAddr, departMinutes){
+ if(!fromAddr || !toAddr) return {mins:0, estimated:false, fromOk:!!fromAddr, toOk:!!toAddr};
+ if(fromAddr===toAddr) return {mins:0, estimated:false, fromOk:true, toOk:true};
+ const bucket = departMinutes!=null ? timeBucket(departMinutes) : null;
+ const ck = fromAddr+"→"+toAddr+(bucket!=null ? "@"+bucket : "");
+ if(routeCache[ck]!=null) return {mins:routeCache[ck], estimated:false, fromOk:true, toOk:true};
+ const a = await geocode(fromAddr);
+ const b = await geocode(toAddr);
+ const fromOk = !!a, toOk = !!b;
+ if(!a || !b){
+   return {mins:pseudoTravel(fromAddr,toAddr), estimated:true, fromOk, toOk};
+ }
+ try{
+   let url = `/.netlify/functions/route?lat1=${a.lat}&lon1=${a.lon}&lat2=${b.lat}&lon2=${b.lon}`;
+   if(bucket!=null) url += `&departAt=${encodeURIComponent(departAtISO(bucket))}`;
+   const res = await fetch(url);
+   const data = await res.json();
+   if(data && data.mins!=null){
+     routeCache[ck]=data.mins; persistCaches();
+     return {mins:data.mins, estimated:false, fromOk:true, toOk:true};
+   }
+ }catch(e){ console.warn("Routing proxy failed:", e); }
+ return {mins:pseudoTravel(fromAddr,toAddr), estimated:true, fromOk:true, toOk:true};
+}
+
+async function calcDriver(d, onProgress){
+ const effectiveStart = d.actualStart || d.start;
+ let t=parseTime(effectiveStart), prev=d.startLoc, rows=[], anyEstimated=false, anyBadAddress=false, badStart=false, badReturn=false;
+ for(let i=0;i<d.jobs.length;i++){
+   const j=d.jobs[i];
+   if(onProgress) onProgress(`${d.name}: routing stop ${i+1} of ${d.jobs.length}…`);
+   const {mins,estimated,fromOk,toOk}=await drivingMinutes(prev,j.address,t);
+   if(estimated) anyEstimated=true;
+   if(i===0 && !fromOk) badStart=true;
+   const addressBad = !j.address || !toOk;
+   if(addressBad) anyBadAddress=true;
+   t+=mins; const arr=t;
+   const serviceMin = Math.round((Number(j.hours)||0)*60);
+   t+=serviceMin;
+   rows.push({driver:d.name,stop:i+1,customer:j.customer||"—",phone:j.phone,address:j.address||"—",type:j.type,travel:mins,estimated,addressBad,arrival:fmt(arr),service:serviceMin,done:fmt(t),notes:j.notes});
+   prev=j.address;
+   if((j.type==="Removal"||j.type==="Pickup") && j.toYard && j.yardAddress){
+     if(onProgress) onProgress(`${d.name}: routing yard drop-off…`);
+     const yardRes = await drivingMinutes(prev, j.yardAddress, t);
+     if(yardRes.estimated) anyEstimated=true;
+     const yardBad = !j.yardAddress || !yardRes.toOk;
+     if(yardBad) anyBadAddress=true;
+     t+=yardRes.mins; const yarr=t;
+     const yardServiceMin = Math.round((Number(j.yardHours)||0)*60);
+     t+=yardServiceMin;
+     rows.push({driver:d.name,stop:(i+1)+" (yard)",customer:"Yard drop-off",phone:"",address:j.yardAddress,type:"Yard Drop",travel:yardRes.mins,estimated:yardRes.estimated,addressBad:yardBad,arrival:fmt(yarr),service:yardServiceMin,done:fmt(t),notes:""});
+     prev=j.yardAddress;
+   }
+ }
+ if(onProgress) onProgress(`${d.name}: routing return leg…`);
+ const backRes = await drivingMinutes(prev,d.returnLoc);
+ if(backRes.estimated) anyEstimated=true;
+ if(!d.returnLoc || !backRes.toOk) badReturn=true;
+ const finish=t+backRes.mins;
+ return {rows,finish,back:backRes.mins,total:finish-parseTime(effectiveStart),anyEstimated,anyBadAddress,badStart,badReturn,effectiveStart,usedActual:!!d.actualStart};
+}
+function renderCallSheet(results){
+ let html="<table><thead><tr><th>Driver</th><th>Stop</th><th>Customer</th><th>Job</th><th>ETA</th><th>Duration</th><th>Est. done</th></tr></thead><tbody>";
+ results.forEach(r=>r.rows.forEach(x=>{
+   html+=`<tr class="${x.addressBad?"badaddr":""}">
+     <td>${escapeHtml(x.driver)}</td>
+     <td>${x.stop}</td>
+     <td>${escapeHtml(x.customer)}<div class="contact">${escapeHtml(x.address)}${x.phone?" · "+escapeHtml(x.phone):""}</div>${x.addressBad?'<div class="addr-flag">⚠ Address not found — please verify</div>':''}</td>
+     <td>${escapeHtml(x.type)}</td>
+     <td>${x.arrival}${(x.estimated&&!x.addressBad)?' <span title="Routing service unavailable — drive time estimated">*</span>':''}</td>
+     <td>${(x.service/60).toFixed(2).replace(/\.00$/,"")} hr</td>
+     <td>${x.done}</td>
+   </tr>`;
+ }));
+ html+="</tbody></table>";
+ results.forEach(r=>{
+   const over = r.total>720;
+   const startNote = r.usedActual ? ` · departed ${fmt(r.effectiveStart)} (actual)` : ` · departs ${fmt(r.effectiveStart)} (planned)`;
+   html+=`<div class="driver-summary ${(over||r.anyBadAddress||r.badStart||r.badReturn)?"warn":""}">
+     <b>${escapeHtml(r.driverName)}</b>${startNote} — projected return: ${fmt(r.finish)} · total span ${Math.floor(r.total/60)}h ${r.total%60}m
+     ${over?" · Schedule exceeds 12 hours":""}
+     ${r.badStart?" · ⚠ starting location could not be located — please verify":""}
+     ${r.badReturn?" · ⚠ return location could not be located — please verify":""}
+     ${r.anyBadAddress?" · ⚠ one or more stop addresses could not be located — see highlighted rows above":""}
+     ${(r.anyEstimated&&!r.anyBadAddress)?" · * one or more drive times could not be routed, estimate used":""}
+   </div>`;
+ });
+ html += '<div style="margin-top:10px;font-size:11.5px;color:var(--faint)">Drive times via Google Maps.</div>';
+ document.getElementById("results").innerHTML = html || '<p class="empty">Add stops, then calculate the schedule.</p>';
+}
+async function calculateOne(){
+ saveCurrent();
+ const d = drivers[selected];
+ if(!d.jobs.length){ document.getElementById("results").innerHTML='<p class="empty">This driver has no stops yet.</p>'; return; }
+ setCalcButtonsDisabled(true);
+ document.getElementById("results").innerHTML = '<p class="empty">Calculating real drive times…</p>';
+ const r = await calcDriver(d, setStatus);
+ r.driverName = d.name;
+ setStatus("");
+ renderCallSheet([r]);
+ setCalcButtonsDisabled(false);
+ queueSave();
+}
+async function calculateAll(){
+ saveCurrent();
+ const withJobs = drivers.filter(d=>d.jobs.length);
+ if(!withJobs.length){ document.getElementById("results").innerHTML='<p class="empty">No stops scheduled yet.</p>'; return; }
+ setCalcButtonsDisabled(true);
+ document.getElementById("results").innerHTML = '<p class="empty">Calculating real drive times for all drivers…</p>';
+ const results = [];
+ for(const d of withJobs){
+   const r = await calcDriver(d, setStatus);
+   r.driverName = d.name;
+   results.push(r);
+ }
+ setStatus("");
+ renderCallSheet(results);
+ setCalcButtonsDisabled(false);
+ queueSave();
+}
+function setCalcButtonsDisabled(disabled){
+ document.querySelectorAll(".actions button").forEach(b=>b.disabled=disabled);
+}
+function escapeHtml(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
+function escapeAttr(s){return escapeHtml(s).replace(/"/g,"&quot;")}
+
+// ---- Dispatch report import ----
+function toggleImport(){
+ const p=document.getElementById("importPanel");
+ const showing = p.style.display!=="none";
+ p.style.display = showing ? "none" : "block";
+ if(!showing){ document.getElementById("importSummary").textContent=""; }
+}
+function clearImportText(){
+ document.getElementById("importText").value="";
+ document.getElementById("importSummary").textContent="";
+ document.getElementById("importText").focus();
+}
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+}
+async function extractPdfText(arrayBuffer){
+  const pdf = await pdfjsLib.getDocument({data:arrayBuffer}).promise;
+  let fullText = "";
+  for(let p=1; p<=pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    let lastY = null, line = "";
+    for(const item of content.items){
+      const y = item.transform[5];
+      if(lastY!==null && Math.abs(y-lastY)>2){
+        fullText += line.trim() + "\n";
+        line = "";
+      }
+      line += item.str + " ";
+      lastY = y;
+    }
+    fullText += line.trim() + "\n\n";
+  }
+  return fullText;
+}
+async function handlePdfUpload(e){
+  const file = e.target.files[0];
+  e.target.value = ""; // allow re-uploading the same file later
+  if(!file) return;
+  const statusEl = document.getElementById("importSummary");
+  if(!window.pdfjsLib){
+    statusEl.textContent = "PDF reader didn't load — try refreshing the page, or paste the report text into the box below instead.";
+    return;
+  }
+  statusEl.textContent = `Reading ${file.name}…`;
+  try{
+    const buf = await file.arrayBuffer();
+    const text = await extractPdfText(buf);
+    document.getElementById("importText").value = text;
+    statusEl.textContent = "PDF read — importing…";
+    parseAndImport();
+  }catch(err){
+    console.warn("PDF read failed:", err);
+    statusEl.textContent = "Couldn't read that PDF — try copy-pasting the text into the box below instead.";
+  }
+}
+function titleCaseName(s){
+ return s.toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase());
+}
+function cleanAddress(addr){
+ // strip a trailing ", Contact Name, (555) 555-5555" or ", 555.555.5555" (name optional, either phone format)
+ return addr.replace(/,\s*(?:[A-Za-z.'-]+(?:\s+[A-Za-z.'-]+){0,2},\s*)?(?:\(\d{3}\)\s?\d{3}-\d{4}|\d{3}[.\-]\d{3}[.\-]\d{4})\s*$/,'').trim();
+}
+function parseDispatchReport(text){
+ const rawLines = text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l.length);
+ const driverNameRe = /^[A-Z][A-Z'.\-]*(?:\s[A-Z][A-Z'.\-]*){1,3}$/;
+ const skipWords = /^(REQUESTED|REPORT|PAGE|FROM|TO|CUSTOMER)\b/;
+ const jobStartRe = /^\d{1,2}\/\d{1,2}\/\d{2,4}\s+\d{1,2}:\d{2}\s+\S+\s+(PICKUP|DELIVERY|OSM|REMOVAL|DROP|RE-SPOT)\b/i;
+ const typeMap = {PICKUP:"Pickup",DELIVERY:"Delivery",OSM:"Onsite Move",REMOVAL:"Removal",DROP:"Drop","RE-SPOT":"Onsite Move"};
+ const result = {}; // name -> [jobs]
+ const order = [];
+ let currentDriver = null;
+ let currentType = null;
+ let buf = [];
+
+ function flush(){
+   if(!currentDriver || !buf.length) return;
+   let customer = null;
+   for(let i=0;i<buf.length;i++){
+     const line = buf[i];
+     // Format seen in real PDF text extraction: "Company Name Customer:" (name first, label at end of line)
+     const nameFirst = line.match(/^(.+?)\s+Customer:\s*$/i);
+     if(nameFirst){ customer = nameFirst[1].trim(); break; }
+     // Format: "Customer: Name" (inline) or "Customer:" alone with the name on the next line
+     if(/^customer:/i.test(line)){
+       const rest = line.replace(/^customer:/i,"").trim();
+       customer = rest || buf[i+1] || null;
+       break;
+     }
+   }
+   let fromAddr=null, toAddr=null;
+   buf.forEach(l=>{
+     if(l.startsWith("From:")) fromAddr = l.slice(5).trim();
+     else if(l.startsWith("To:")) toAddr = l.slice(3).trim();
+   });
+   const jt = typeMap[currentType] || "Delivery";
+   // Pickup/Removal: the physical stop is the site being picked up/removed FROM.
+   // Delivery/OSM/Drop: the physical stop is the destination (To).
+   let address, toYard=false, yardAddress="";
+   if(currentType==="PICKUP" || currentType==="REMOVAL"){
+     address = fromAddr || toAddr;
+     const fClean = cleanAddress(fromAddr||"");
+     const tClean = cleanAddress(toAddr||"");
+     // Pickup/Removal jobs list a destination: if it differs from the pickup site,
+     // it's a real drop (usually the yard) and needs its own travel leg.
+     // If From/To match, the load goes straight to the next stop — no extra leg.
+     if(tClean && fClean && tClean.toLowerCase()!==fClean.toLowerCase()){
+       toYard = true; yardAddress = tClean;
+     }
+   } else {
+     address = toAddr || fromAddr;
+   }
+   address = cleanAddress(address||"");
+   if(!result[currentDriver]){ result[currentDriver]=[]; order.push(currentDriver); }
+   const job = mkJob(address, jt);
+   job.customer = customer || "";
+   if(toYard){ job.toYard = true; job.yardAddress = yardAddress; }
+   result[currentDriver].push(job);
+ }
+
+ for(const line of rawLines){
+   if(driverNameRe.test(line) && !skipWords.test(line) && !/\d/.test(line)){
+     flush(); buf=[];
+     currentDriver = titleCaseName(line);
+     currentType = null;
+     continue;
+   }
+   const m = line.match(jobStartRe);
+   if(m){
+     flush(); buf=[];
+     currentType = m[1].toUpperCase();
+     continue;
+   }
+   if(currentDriver) buf.push(line);
+ }
+ flush();
+ return {order, byDriver:result};
+}
+function parseAndImport(){
+ const text = document.getElementById("importText").value;
+ if(!text.trim()){ document.getElementById("importSummary").textContent="Paste report text first."; return; }
+ const {order, byDriver} = parseDispatchReport(text);
+ if(!order.length){ document.getElementById("importSummary").textContent="No drivers recognized — check the pasted text."; return; }
+ saveCurrent();
+ let added=0, updated=0, totalStops=0;
+ order.forEach(name=>{
+   const jobs = byDriver[name];
+   totalStops += jobs.length;
+   const idx = drivers.findIndex(d=>d.name.toLowerCase()===name.toLowerCase());
+   if(idx>=0){ drivers[idx].jobs = jobs; updated++; }
+   else{ drivers.push({name,truck:"",start:"06:00",actualStart:null,startLoc:"Lake Forest Yard",returnLoc:"Lake Forest Yard",jobs}); added++; }
+ });
+ selected = drivers.findIndex(d=>d.name.toLowerCase()===order[0].toLowerCase());
+ renderDrivers(); loadDriver(); queueSave();
+ document.getElementById("importSummary").textContent = `Imported ${totalStops} stops across ${order.length} drivers (${added} added, ${updated} updated).`;
+}
+
+// bind live edits to auto-save
+document.addEventListener("input", (e)=>{
+  if(e.target.closest(".job") || ["driverName","driverTruck","startTime","actualStart","startLocation","returnLocation"].includes(e.target.id)){
+    queueSave();
+    if(["startTime","actualStart"].includes(e.target.id)){ updateDepartureNote(); renderDrivers(); }
+    if(["driverName","driverTruck"].includes(e.target.id)){ renderDrivers(); }
+  }
+});
+document.addEventListener("input", (e)=>{
+  if(["startLocation","returnLocation"].includes(e.target.id)) return;
+});
+
+// ---- All-driver route map ----
+const DRIVER_COLORS = ["#C2660D","#2A6F97","#2A9D8F","#8338EC","#E63946","#4C956C","#B5179E","#3A86FF"];
+let routeMapInstance = null;
+let routeMapLayer = null;
+function stopIcon(color,num){
+ return L.divIcon({className:"",html:`<div style="background:${color};color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${num}</div>`,iconSize:[26,26],iconAnchor:[13,13]});
+}
+function depotIcon(color){
+ return L.divIcon({className:"",html:`<div style="background:#fff;color:${color};border:3px solid ${color};border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;box-shadow:0 1px 3px rgba(0,0,0,.4)">Y</div>`,iconSize:[22,22],iconAnchor:[11,11]});
+}
+function closeRouteMap(){
+ document.getElementById("routeMapPanel").style.display="none";
+}
+async function showRouteMap(){
+ saveCurrent();
+ const panel=document.getElementById("routeMapPanel");
+ const statusEl=document.getElementById("routeMapStatus");
+ const legendEl=document.getElementById("routeMapLegend");
+ panel.style.display="block";
+ legendEl.innerHTML="";
+ const withJobs = drivers.filter(d=>d.jobs.length);
+ if(!withJobs.length){ statusEl.textContent="No stops scheduled yet — add stops to a driver first."; return; }
+ if(!routeMapInstance){
+   routeMapInstance = L.map("routeMapDiv");
+   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"&copy; OpenStreetMap contributors",maxZoom:19}).addTo(routeMapInstance);
+ }
+ setTimeout(()=>routeMapInstance.invalidateSize(),50);
+ if(routeMapLayer) routeMapLayer.remove();
+ routeMapLayer = L.layerGroup().addTo(routeMapInstance);
+ const allPoints=[];
+ for(let di=0; di<withJobs.length; di++){
+   const d=withJobs[di];
+   const color=DRIVER_COLORS[di % DRIVER_COLORS.length];
+   statusEl.textContent = `Geocoding ${d.name}'s stops…`;
+   const seq=[{addr:d.startLoc,kind:"depot"}];
+   let stopNum=0;
+   for(const j of d.jobs){
+     stopNum++;
+     seq.push({addr:j.address,kind:"stop",num:stopNum});
+     if(j.toYard && j.yardAddress) seq.push({addr:j.yardAddress,kind:"yard"});
+   }
+   seq.push({addr:d.returnLoc,kind:"depot"});
+   const coords=[];
+   for(const s of seq){
+     if(!s.addr) continue;
+     const loc = await geocode(s.addr);
+     if(!loc) continue;
+     coords.push([loc.lat,loc.lon]);
+     allPoints.push([loc.lat,loc.lon]);
+     if(s.kind==="stop"){
+       L.marker([loc.lat,loc.lon],{icon:stopIcon(color,s.num)}).addTo(routeMapLayer)
+         .bindPopup(`<b>${escapeHtml(d.name)}</b> — Stop ${s.num}<br>${escapeHtml(s.addr)}`);
+     } else if(s.kind==="depot"){
+       L.marker([loc.lat,loc.lon],{icon:depotIcon(color)}).addTo(routeMapLayer)
+         .bindPopup(`<b>${escapeHtml(d.name)}</b> — Yard<br>${escapeHtml(s.addr)}`);
+     } else {
+       L.circleMarker([loc.lat,loc.lon],{radius:5,color,fillColor:color,fillOpacity:1}).addTo(routeMapLayer)
+         .bindPopup(`<b>${escapeHtml(d.name)}</b> — Yard drop-off<br>${escapeHtml(s.addr)}`);
+     }
+   }
+   if(coords.length>1) L.polyline(coords,{color,weight:3,opacity:.85}).addTo(routeMapLayer);
+   const item=document.createElement("div");
+   item.style.cssText="display:flex;align-items:center;gap:6px;font-size:12.5px";
+   item.innerHTML = `<span style="width:12px;height:12px;border-radius:50%;background:${color};display:inline-block"></span>${escapeHtml(d.name)}`;
+   legendEl.appendChild(item);
+ }
+ if(allPoints.length){ routeMapInstance.fitBounds(allPoints,{padding:[30,30]}); }
+ statusEl.textContent = allPoints.length ? "" : "Couldn't locate any addresses — try Calculate all schedules first so addresses are cached.";
+}
+
+(async function init(){
+  await loadFromStorage();
+  await loadCaches();
+  renderDrivers(); loadDriver();
+})();
+</script>
+</body>
+</html>
