@@ -8,7 +8,6 @@ exports.handler = async function (event) {
   const headers = { "Content-Type": "application/json" };
   const googleKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!googleKey) {
-    console.error("GOOGLE_MAPS_API_KEY is not set in this site's environment variables.");
     return { statusCode: 200, headers, body: JSON.stringify(null) };
   }
   try {
@@ -19,7 +18,6 @@ exports.handler = async function (event) {
       const loc = data.results[0].geometry.location;
       return { statusCode: 200, headers, body: JSON.stringify({ lat: loc.lat, lon: loc.lng, source: "google" }) };
     }
-    console.error("Google geocode failed for", q, "- status:", data && data.status, "- message:", data && data.error_message);
-  } catch (e) { console.error("Google geocode request threw for", q, "-", e.message); }
+  } catch (e) { /* fall through */ }
   return { statusCode: 200, headers, body: JSON.stringify(null) };
 };

@@ -9,7 +9,6 @@ exports.handler = async function (event) {
   const headers = { "Content-Type": "application/json" };
   const googleKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!googleKey) {
-    console.error("GOOGLE_MAPS_API_KEY is not set in this site's environment variables.");
     return { statusCode: 200, headers, body: JSON.stringify(null) };
   }
   try {
@@ -36,7 +35,6 @@ exports.handler = async function (event) {
         return { statusCode: 200, headers, body: JSON.stringify({ mins: Math.round(seconds / 60), source: "google" }) };
       }
     }
-    console.error("Google routing failed for", lat1, lon1, "->", lat2, lon2, "- response:", JSON.stringify(data));
-  } catch (e) { console.error("Google routing request threw:", e.message); }
+  } catch (e) { /* fall through */ }
   return { statusCode: 200, headers, body: JSON.stringify(null) };
 };
